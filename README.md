@@ -1,2 +1,2 @@
 # keywordfs
-Well, what is if directory names were keywords?
+Well, what if directory names were keywords?

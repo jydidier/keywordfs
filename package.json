@@ -1,0 +1,22 @@
+{
+  "name": "keywordfs",
+  "version": "1.0.0",
+  "description": "A filesystem in userspace using pathes and especially directories components as keywordss that could be used to search or locate files",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "fuse",
+    "tags",
+    "keywords",
+    "virtual file system"
+  ],
+  "author": "Jean-Yves Didier",
+  "license": "ISC",
+  "dependencies": {
+    "node-fuse-bindings": "github:jydidier/node-fuse-bindings#jydidier-20240807",
+    "set.prototype.difference": "^1.1.5",
+    "set.prototype.intersection": "^1.1.5"
+  }
+}
