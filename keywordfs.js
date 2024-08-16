@@ -1,3 +1,5 @@
+#!/usr/bin/env node 
+
 const fuse = require('node-fuse-bindings');
 const fs = require('fs');
 const pathLib = require('path');
@@ -230,6 +232,7 @@ class KeywordFS  {
 
         listing.push('.');
         listing.push('..');
+        listing.push(this.#link);
 
         let result = new KeywordCacheEntry(actualPath, listing, arr);
         this.#cache.set(path, result);
@@ -241,6 +244,7 @@ class KeywordFS  {
         console.log('open', path, flags);
 
         if (path === pathLib.sep) { cb(0,fs.openSync(this.#referencepoint)); return; }
+        if (pathLib.basename(path) === this.#link) { cb(0,0); return; }
         const basePath = this.#getActualEntry(pathLib.dirname(path));
         if (basePath === undefined) { cb(fuse.ENOENT); return; }
 
@@ -281,6 +285,7 @@ class KeywordFS  {
     #access(path, mode, cb) {
         console.log('access', path, mode);
         if (path === pathLib.sep) { cb(0); return; }
+        if (pathLib.basename(path) === this.#link) { cb(0); return; }
 
         const basePath = this.#getActualEntry(pathLib.dirname(path));
         if (basePath === undefined) { cb(fuse.ENOENT);  return; }
@@ -305,49 +310,9 @@ class KeywordFS  {
     }
 
 
+
+
     #read(path, fd, buffer, length, position, cb) {
-        if (path.indexOf('@') !== -1 && pathLib.basename(path) === 'entries') {
-            let entries = new Set();
-            processPath(path).forEach((x) => {
-                if (x.startsWith('@') && x !== '@@') {
-                    let newEntries = new Set();
-                    badgeNodes.get(x.substring(1)).entries.map((x) => newEntries.add(x));
-                    if (entries.size === 0) {
-                        entries = newEntries;
-                    } else {
-                        entries = entries.intersection(newEntries);
-                    }
-                }
-            });
-            
-            let arr = Array.from(entries).sort((a,b) => a.name.length - b.name.length);
-            let str = arr.map((x) => x.name).join(os.EOL)+os.EOL;
-            console.log(length, position,str);
-            //cb(buffer.write(str, position, length));
-            //cb(buffer.copy( Buffer.from(str),0, position,length));
-            cb(Buffer.from(str).copy(buffer,0,position,length));
-            return;
-        }
-
-        if (path.indexOf('@') !== -1 && pathLib.basename(path) === '@@') {
-            let entries = new Set();
-            processPath(path).forEach((x) => {
-                if (x.startsWith('@') && x !== '@@') {
-                    let newEntries = new Set();
-                    badgeNodes.get(x.substring(1)).entries.map((x) => newEntries.add(x));
-                    if (entries.size === 0) {
-                        entries = newEntries;
-                    } else {
-                        entries = entries.intersection(newEntries);
-                    }
-                }
-            });
-
-            let arr = Array.from(entries).sort((a,b) => a.name.length - b.name.length);
-            cb(buffer.write(pathLib.resolve(mountpoint,"." + pathLib.sep + pathLib.relative(referencepoint,arr[0].name))));
-            return;
-        }
-
         cb(fs.readSync(fd, buffer, 0, length, position));
     }
 
@@ -404,14 +369,17 @@ class KeywordFS  {
 
     #getattr(path, cb) {
         console.log('getattr', path);
+        const basePath = this.#getActualEntry(pathLib.dirname(path));
 
-        if (path === pathLib.sep) {
+        if (path === pathLib.sep || pathLib.basename(path) === this.#link) {
             cb(0, {
                 mtime: new Date(),
                 atime: new Date(),
                 ctime: new Date(),
-                size: 4096,
-                mode: fs.constants.S_IFDIR | fs.constants.S_IRWXU,
+                size: (path === pathLib.sep)?4096:basePath.path.length,
+                mode:  ((path === pathLib.sep) ? 
+                    (fs.constants.S_IFDIR | fs.constants.S_IRWXU):
+                    (fs.constants.S_IFLNK | fs.constants.S_IRUSR)),
                 uid: process.getuid(),
                 gid: process.getgid()
             });
@@ -419,7 +387,6 @@ class KeywordFS  {
         }
 
         if (path === pathLib.sep) { cb(0,fs.openSync(this.#referencepoint)); return; }
-        const basePath = this.#getActualEntry(pathLib.dirname(path));
         if (basePath === undefined) { cb(fuse.ENOENT); return; }
 
         const base = pathLib.basename(path);
@@ -510,6 +477,10 @@ class KeywordFS  {
         if (path === pathLib.sep) { cb(fuse.ENOENT); return; }
         const basePath = this.#getActualEntry(pathLib.dirname(path));
         if (basePath === undefined) { cb(fuse.ENOENT); return; }
+        if (pathLib.basename(path) === this.#link) { 
+            cb(0,basePath.path); 
+            return; 
+        }
 
         const actualFile = basePath.path + pathLib.sep + pathLib.basename(path);
         if (fs.existsSync(actualFile)) {

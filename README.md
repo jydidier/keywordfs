@@ -2,7 +2,7 @@
 Well, what if directory names were keywords?
 
 ## Concept
-Being organized in your file systems means that we usually attach semantics to directories. For example, they can be sorted by activities, projects, years and so on...
+"Being organized in your file systems means that we usually attach semantics to directories. For example, they can be sorted by activities, projects, years and so on...
 The more it is organized, the more, you have built a hierarchy with directories. It is nice, except, ... you have to go all the way down to the hierarchy in order to find the pieces of information you put in some files...
 
 The idea behind keywordfs is to remount your filesystem so that the names of the directories are keywords. Then you can navigate through them using keywords instead of a full hierarchy. The idea is that you can borrow shortcuts to get the files. 
@@ -36,7 +36,7 @@ If, at the root of the mounted virtual filesystem, I type:
 * `cd 2021/researchProjectB`: I will go to `research/projects/researchProjectB/2021`,
 * `cd 2022`: well, it will go to `teaching/2022` (shortest path in terms of string length and then first in alphabetical order). However, from this point, I will be able to see 5 subdirectories that are `research`, `projects`, `ResearchProjectB`, `SubjectB` and `SubjectC`. Basically, it means that I will be able to navigate to related keywords until there is a single entry that matches the keyword combination.
 
-There you have the concept behind **keywordfs**.
+There you have the concept behind **keywordfs**."
 
 ## Setup
 You will need `git` and `nodeJS` or equivalents.
@@ -60,10 +60,12 @@ $ node keywordfs.js <mountpoint> <referencepoint>
 ```
 Then, you can enjoy it by going to the mountpoint.
 
+For all subdirectories, a symlink named **@** is generated that points to the 
+related actual directory.
+
 ## TODO
 
-Many things are still needed for this proof of concept
+Many things are still needed for this proof of concept to work perfectly:
 
 * robustify many FUSE operations
 * check performance issues that may arise
-* transform it as a usable npm package

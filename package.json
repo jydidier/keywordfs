@@ -2,15 +2,29 @@
   "name": "keywordfs",
   "version": "1.0.0",
   "description": "A filesystem in userspace using pathes and especially directories components as keywordss that could be used to search or locate files",
-  "main": "index.js",
+  "main": "keywordfs.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jydidier/keywordfs.git"
+  },
+  "bugs": {
+      "url": "https://github.com/jydidier/keywordfs/issues"
+  },
+  "bin": {
+    "keywordfs": "keywordfs.js"
+  },
+  "homepage": "https://github.com/jydidier/keywordfs#readme",
   "keywords": [
     "fuse",
     "tags",
     "keywords",
-    "virtual file system"
+    "virtual filesystem",
+    "semantic filesystem",
+    "file search",
+    "file organization"    
   ],
   "author": "Jean-Yves Didier",
   "license": "ISC",
