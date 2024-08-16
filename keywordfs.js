@@ -29,15 +29,6 @@ if (process.argv.length < 4) {
 const mountpoint = pathLib.resolve(process.argv[2]);
 const referencepoint = pathLib.resolve(process.argv[3]);
 
-// the operations that we need to implement are:
-// 4. create
-// 6. mkdir
-// 7. rmdir
-// 8. unlink
-// 9. link
-// 10. symlink
-
-
 class BadgeEntry {
     #name = '';
     #nodes = [];
@@ -123,11 +114,16 @@ class KeywordFS  {
     #badgeNodes = new Map();
     #badgeEntries = new Map();
     #cache = new Map();
+    #link = '@';
 
     constructor(mountpoint, referencepoint) {
         this.#mountpoint = mountpoint;
         this.#referencepoint = referencepoint;
         this.#readDir(referencepoint);
+    }
+
+    set link(link) {
+        this.#link = link;
     }
 
     #splitPath(path) {
@@ -187,7 +183,11 @@ class KeywordFS  {
             });
             contents.push('.');
             contents.push('..');
-            return new KeywordCacheEntry(this.#referencepoint, contents, path);
+            let result = new KeywordCacheEntry(this.#referencepoint, contents, path);
+            // not sure if this is a good idea to set it in cache
+            // more memory usage but faster access
+            this.#cache.set(path, result);
+            return result;
         } 
 
         this.#splitPath(path).forEach((x) => {
@@ -216,21 +216,26 @@ class KeywordFS  {
             nodes.delete(x);
         });
 
+        // we also need to filter out components from the actual path
+        this.#splitPath(pathLib.relative(this.#referencepoint, actualPath)).forEach((x) => {
+            nodes.delete(x);
+        });
 
-        //nodes.forEach((x) => {  if (x.name !== pathLib.basename(path)) listing.push(x.name); });
         nodes.forEach((x) => {  listing.push(x); });
-
-
 
         fs.readdirSync(actualPath).forEach(function(entry) {
             const entryPath = actualPath + pathLib.sep + entry;
             if (fs.statSync(entryPath).isFile()) listing.push(entry);
         });
 
+        listing.push('.');
+        listing.push('..');
+
         let result = new KeywordCacheEntry(actualPath, listing, arr);
         this.#cache.set(path, result);
         return result
     }
+
 
     #open(path, flags, cb) {
         console.log('open', path, flags);
@@ -254,6 +259,7 @@ class KeywordFS  {
         }
         cb(fuse.ENOENT);
     }
+
 
     #opendir(path, flags, cb) {
         console.log('opendir', path, flags);
@@ -349,8 +355,20 @@ class KeywordFS  {
         cb(fs.writeSync(fd, buffer, 0, length, position));        
     }
 
+    #flush(path, fd, cb) {
+        console.log('flush', path, fd);        
+        cb(0,fs.fsyncSync(fd));                
+    }
+
+    #ftruncate(path, fd, size, cb) {
+        cb(fs.ftruncateSync(fd, size));
+    }
+
+
+
     #rename(src, dest, cb) {
-        fs.renameSync(this.getReference(src), this.getReference(dest))
+        // TODO: to implement
+        //fs.renameSync(this.getReference(src), this.getReference(dest))
         cb(0);
     }
 
@@ -387,7 +405,7 @@ class KeywordFS  {
     #getattr(path, cb) {
         console.log('getattr', path);
 
-        if (path === '/') {
+        if (path === pathLib.sep) {
             cb(0, {
                 mtime: new Date(),
                 atime: new Date(),
@@ -436,7 +454,109 @@ class KeywordFS  {
         }
         cb(fuse.ENOENT);
 
-    }       
+    }   
+    
+    #mkdir(path, mode, cb) {
+        console.log('mkdir', path, mode);
+
+        if (path === pathLib.sep) { cb(fuse.EEXIST); return; }
+
+        const basePath = this.#getActualEntry(pathLib.dirname(path));
+        if (basePath === undefined) { cb(fuse.ENOENT); return; }
+
+        // for the moment, we clear all cache entries
+        this.#cache.clear();
+        const newDir = basePath.path + pathLib.sep + pathLib.basename(path);
+        this.#insertDir(newDir);
+        cb(0, fs.mkdirSync(newDir, mode));
+    }
+
+    #rmdir(path, cb) {
+        console.log('rmdir', path);
+        if (path === pathLib.sep) { cb(fuse.EPERM); return;}
+
+        const basePath = this.#getActualEntry(path);
+        if (basePath === undefined) { cb(fuse.ENOENT); return; }
+
+        this.#cache.clear();
+
+        // we need to remove the directory from the badge entries
+        let entry = this.#badgeEntries.get(basePath.path);
+        entry.nodes.forEach((x) => x.removeEntry(entry));
+        this.#badgeEntries.delete(basePath.path);
+
+        cb(0, fs.rmdirSync(basePath.path));
+    }
+
+
+    #truncate(path, size, cb) {
+        console.log('truncate', path, flags);
+
+        if (path === pathLib.sep) { cb(fuse.EISDIR); return; }
+        const basePath = this.#getActualEntry(pathLib.dirname(path));
+        if (basePath === undefined) { cb(fuse.ENOENT); return; }
+
+        const actualFile = basePath.path + pathLib.sep + pathLib.basename(path);
+        if (fs.existsSync(actualFile)) {
+            cb (0, fs.truncateSync(actualFile, size));
+            return ; 
+        } 
+        cb(fuse.ENOENT);
+    }
+
+    #readlink(path, cb) {
+        console.log('readlink', path);
+
+        if (path === pathLib.sep) { cb(fuse.ENOENT); return; }
+        const basePath = this.#getActualEntry(pathLib.dirname(path));
+        if (basePath === undefined) { cb(fuse.ENOENT); return; }
+
+        const actualFile = basePath.path + pathLib.sep + pathLib.basename(path);
+        if (fs.existsSync(actualFile)) {
+            cb (0, fs.readlinkSync(actualFile));
+            return ; 
+        } 
+        cb(fuse.ENOENT);
+    }
+
+    #unlink(path, cb) {
+        console.log('unlink', path);
+
+        if (path === pathLib.sep) { cb(fuse.EISDIR); return; }
+        const basePath = this.#getActualEntry(pathLib.dirname(path));
+        if (basePath === undefined) { cb(fuse.ENOENT); return; }
+        this.#cache.delete(pathLib.dirname(path));
+
+        const actualFile = basePath.path + pathLib.sep + pathLib.basename(path);
+        if (fs.existsSync(actualFile)) {
+            cb (0, fs.unlinkSync(actualFile));
+            return ; 
+        } 
+        cb(fuse.ENOENT);
+    }
+
+    #create(path, mode, cb) {
+        console.log('create', path, mode);
+
+        if (path === pathLib.sep) { cb(fuse.EEXIST); return; }
+        const basePath = this.#getActualEntry(pathLib.dirname(path));
+        if (basePath === undefined) { cb(fuse.ENOENT); return; }
+        this.#cache.delete(pathLib.dirname(path));
+        const actualFile = basePath.path + pathLib.sep + pathLib.basename(path);
+        cb(0,fs.openSync(actualFile,'w', mode));
+    }
+
+    #utimens(path, atime, mtime, cb) {
+        console.log('utime', path, atime, mtime);
+        if (path === pathLib.sep) { cb(fuse.EACCES); return; }
+        const basePath = this.#getActualEntry(pathLib.dirname(path));
+        if (basePath === undefined) { cb(fuse.ENOENT); return; }
+
+        const actualFile = basePath.path + pathLib.sep + pathLib.basename(path);
+
+        cb(0, fs.utimesSync(actualFile, atime, mtime));
+    }
+
 
 
     mount() {
@@ -455,7 +575,16 @@ class KeywordFS  {
             releasedir: self.#releasedir.bind(self),
             getattr: self.#getattr.bind(self),
             fgetattr: self.#fgetattr.bind(self),
-            statfs: self.#statfs.bind(self)
+            statfs: self.#statfs.bind(self),
+            mkdir: self.#mkdir.bind(self),
+            rmdir: self.#rmdir.bind(self),
+            flush: self.#flush.bind(self),
+            ftruncate: self.#ftruncate.bind(self),
+            truncate: self.#truncate.bind(self),
+            readlink: self.#readlink.bind(self),
+            unlink: self.#unlink.bind(self),
+            create: self.#create.bind(self),
+            utimens: self.#utimens.bind(self)
         }, function (err) {
             if (err) throw err
             console.log('filesystem mounted on ' + self.#mountpoint)

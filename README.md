@@ -64,7 +64,6 @@ Then, you can enjoy it by going to the mountpoint.
 
 Many things are still needed for this proof of concept
 
-* implement many FUSE operations
+* robustify many FUSE operations
 * check performance issues that may arise
 * transform it as a usable npm package
-* 
