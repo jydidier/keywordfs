@@ -24,7 +24,7 @@ if (Set.prototype.difference === undefined) {
 // alias tp='if [ -f "@@" ]; then cd `cat @@`; fi'
 
 if (process.argv.length < 4) {
-    console.log('Usage: node badgefs.js <mountpoint> <referencepoint>');
+    console.log('Usage: node keywordfs.js <mountpoint> <referencepoint>');
     process.exit(1);
 }
 
@@ -150,7 +150,7 @@ class KeywordFS  {
     #readDir(path) {
         const entries = fs.readdirSync(path);
         for (let entry of entries) {
-            const entryPath = path + '/' + entry;
+            const entryPath = path + pathLib.sep + entry;
 
             const stats = fs.statSync(entryPath);
             if (stats.isDirectory()) {
@@ -457,7 +457,7 @@ class KeywordFS  {
 
 
     #truncate(path, size, cb) {
-        console.log('truncate', path, flags);
+        console.log('truncate', path, size);
 
         if (path === pathLib.sep) { cb(fuse.EISDIR); return; }
         const basePath = this.#getActualEntry(pathLib.dirname(path));

@@ -1,6 +1,6 @@
 {
   "name": "keywordfs",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A filesystem in userspace using pathes and especially directories components as keywordss that could be used to search or locate files",
   "main": "keywordfs.js",
   "scripts": {
